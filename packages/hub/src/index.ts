@@ -27,8 +27,15 @@ function auth(req: http.IncomingMessage) {
   return req.headers.authorization === `Bearer ${token}`;
 }
 
-const server = new McpServer({ name: 'mcp-hub', version: '0.4.0' });
-registerTools(server, bridge, sessions, token, events, permissions);
+// In stateless mode (sessionIdGenerator: undefined) each HTTP request must use a FRESH
+// McpServer + transport. A single shared server would throw "Already connected to a transport"
+// on the second request. The Hub's real state (sessions, locks, events) lives in the long-lived
+// managers above, so recreating the thin MCP server per request is cheap and correct.
+function buildServer() {
+  const server = new McpServer({ name: 'mcp-hub', version: '0.5.0' });
+  registerTools(server, bridge, sessions, token, events, permissions);
+  return server;
+}
 
 const httpServer = http.createServer(async (req, res) => {
   if (!auth(req)) { res.writeHead(401); res.end('Unauthorized'); return; }
@@ -48,7 +55,9 @@ const httpServer = http.createServer(async (req, res) => {
   if (req.method === 'POST' && req.url === '/session/heartbeat') { let body=''; for await (const chunk of req) body += chunk; try { const { sessionId } = JSON.parse(body); res.writeHead(200, {'content-type':'application/json'}); res.end(JSON.stringify(sessions.heartbeat(sessionId))); } catch { res.writeHead(400); res.end('Bad session'); } return; }
   if (req.url === '/health') { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: true })); return; }
   if (req.url?.startsWith('/mcp')) {
+    const server = buildServer();
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+    res.on('close', () => { void transport.close(); void server.close(); });
     await server.connect(transport);
     await transport.handleRequest(req, res);
     return;

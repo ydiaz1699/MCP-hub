@@ -107,3 +107,24 @@ test('BridgeClient rejects on a bad token (401)', async () => {
     server.close();
   }
 });
+
+import { HUB_SESSION_HEADER, resolveHubSession } from '../src/tool-registry.js';
+
+test('resolveHubSession prefers header, then arg, then transport sessionId', () => {
+  // header wins
+  assert.equal(
+    resolveHubSession({ _hubSession: 'arg-id' }, { requestInfo: { headers: { [HUB_SESSION_HEADER]: 'header-id' } }, sessionId: 'transport-id' }),
+    'header-id'
+  );
+  // header as array (IsomorphicHeaders) still resolves to first value
+  assert.equal(
+    resolveHubSession({}, { requestInfo: { headers: { [HUB_SESSION_HEADER]: ['h1', 'h2'] } } }),
+    'h1'
+  );
+  // arg is used when no header
+  assert.equal(resolveHubSession({ _hubSession: 'arg-id' }, {}), 'arg-id');
+  // transport sessionId as last resort
+  assert.equal(resolveHubSession({}, { sessionId: 'transport-id' }), 'transport-id');
+  // nothing available
+  assert.equal(resolveHubSession({}, {}), undefined);
+});

@@ -108,15 +108,26 @@ pnpm -r build          # compila los 3 paquetes
 pnpm --filter @mcp-hub/hub test   # tests (event bus, locks, lease, permisos, bridge RPC)
 ```
 
+## Vínculo de sesión (arbitraje multi-agente)
+
+Las tools mutables (`open`, `write_file`, `execute`, `debug.*`…) **requieren** una sesión del Hub:
+
+1. `hub.session.acquire` con `{ client, workspace, mode }` → devuelve un `id` de sesión.
+2. En cada llamada `vscode.*`, pasa ese id como cabecera `x-mcp-hub-session` (preferido) o como
+   argumento `_hubSession`.
+3. La tool toma el lock del workspace para esa sesión; un segundo cliente `exclusive` en el mismo
+   workspace queda bloqueado hasta que el primero haga `hub.session.release` o caduque su lease.
+4. Renueva la sesión con `hub.session.heartbeat` (lease por defecto 30s).
+
+Las tools de solo lectura no exigen sesión. Una llamada mutable sin sesión se rechaza con un
+mensaje accionable.
+
 ## Limitaciones conocidas
 
-- **Vínculo de sesión pendiente.** Las tools `vscode.*` leen `extra.sessionId`, pero los clientes
-  MCP aún no envían el id de sesión del Hub (`hub.session.acquire`). Hasta que un cliente lo
-  provea, las tools mutables se ejecutan sin tomar el lock del workspace. Conectar un id de sesión
-  provisto por el cliente (cabecera o argumento) es el siguiente paso para el arbitraje real
-  multi-agente.
 - El SDK MCP sigue en v1 (`@modelcontextprotocol/sdk@^1.17.5`); la línea v2 (spec 2026-07-28)
   queda como mejora futura.
+- El registro de MCPs externos (github/playwright/postgres bajo el Hub) está diseñado pero no
+  implementado.
 - Antes de usarlo en una máquina compartida conviene endurecer validación de esquemas, auditoría
   y límites de terminal.
 
