@@ -32,7 +32,7 @@ function auth(req: http.IncomingMessage) {
 // on the second request. The Hub's real state (sessions, locks, events) lives in the long-lived
 // managers above, so recreating the thin MCP server per request is cheap and correct.
 function buildServer() {
-  const server = new McpServer({ name: 'mcp-hub', version: '0.5.0' });
+  const server = new McpServer({ name: 'mcp-hub', version: '0.6.0' });
   registerTools(server, bridge, sessions, token, events, permissions);
   return server;
 }

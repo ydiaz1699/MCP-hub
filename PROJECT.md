@@ -4,7 +4,19 @@ Local MCP orchestrator for VS Code. One shared MCP server (the Hub) drives this 
 through a loopback bridge, so Claude Code, Claude Desktop, Cursor and other MCP clients all reuse
 the same semantic tools.
 
-## Phase 5 (current) — session binding + stateless fix
+## Phase 6 (current) — non-throwing lock acquisition
+- `hub.session.acquire` now **always** returns a usable session id. If the workspace is already
+  locked by another session it returns `{ session, locked: true, lockOwner }` instead of failing,
+  so a second agent keeps a valid session to observe/queue and can take the lock later (after the
+  owner releases or its lease expires) without re-creating a session.
+- Mutating tools call `SessionManager.requireLock()`, which throws an actionable
+  *"Workspace X is locked by session Y…"* message — the correct error (previously a blocked second
+  agent got the misleading "requires a Hub session").
+- Verified end-to-end over MCP: Claude locks → Cursor acquires (locked:true) → Cursor write
+  blocked with the right message → Claude writes → Claude releases → Cursor writes with its
+  original session. 12 tests green.
+
+## Phase 5 — session binding + stateless fix
 - **Session binding.** `vscode.*` tools now resolve the governing Hub session from (in priority
   order) the `x-mcp-hub-session` HTTP header, the `_hubSession` tool argument, or the transport
   session id. Mutating tools now **require** a session and take the workspace lock; calls without

@@ -38,7 +38,7 @@ export function registerTools(server: any, bridge: BridgeClient, sessions: Sessi
     permissions.check(session?.client ?? 'anonymous', tool, args);
     if (mutating) {
       if (!sessionId) throw new Error(`Mutating tool "${tool}" requires a Hub session. Call hub.session.acquire and pass its id via the "${HUB_SESSION_HEADER}" header or the "_hubSession" argument.`);
-      sessions.acquire(sessionId);
+      sessions.requireLock(sessionId);
     }
     const result = await bridge.call({ tool, args, sessionId }, token);
     events.publish('tool.completed', { tool, sessionId: sessionId ?? null });
@@ -75,7 +75,11 @@ export function registerTools(server: any, bridge: BridgeClient, sessions: Sessi
   server.registerTool('vscode.lsp.symbols', { description: 'List document symbols of a file', inputSchema: pathArg.shape }, async (args: any, extra: any) => ({ content: [{ type: 'text', text: JSON.stringify(await call('vscode.lsp.symbols', args, extra)) }] }));
   server.registerTool('vscode.lsp.diagnostics', { description: 'Get diagnostics (file or whole workspace)', inputSchema: z.object({ path: z.string().optional(), ...SESSION_FIELD }).shape }, async (args: any, extra: any) => ({ content: [{ type: 'text', text: JSON.stringify(await call('vscode.lsp.diagnostics', args, extra)) }] }));
 
-  server.registerTool('hub.session.acquire', { description: 'Create and acquire a workspace session', inputSchema: z.object({ client: z.string(), workspace: z.string(), mode: z.enum(['exclusive','shared','read-only']).optional() }).shape }, async (args: any) => ({ content: [{ type: 'text', text: JSON.stringify(sessions.acquire(sessions.create(args.client, args.workspace, args.mode ?? permissions.defaultMode()).id)) }] }));
+  server.registerTool('hub.session.acquire', { description: 'Create a Hub session and try to take the workspace lock. Always returns a usable session id; if the workspace is already locked by another session, returns locked:true + lockOwner (the session can still read/observe and retry later).', inputSchema: z.object({ client: z.string(), workspace: z.string(), mode: z.enum(['exclusive','shared','read-only']).optional() }).shape }, async (args: any) => {
+    const session = sessions.create(args.client, args.workspace, args.mode ?? permissions.defaultMode());
+    const result = sessions.acquire(session.id);
+    return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+  });
   server.registerTool('hub.events.recent', { description: 'Get recent VS Code/Hub events', inputSchema: z.object({ limit: z.number().int().min(1).max(100).optional() }).shape }, async (args: any) => ({ content: [{ type: 'text', text: JSON.stringify(events.recent(args.limit)) }] }));
   server.registerTool('hub.session.status', { description: 'Show Hub sessions and locks', inputSchema: empty.shape }, async () => ({ content: [{ type: 'text', text: JSON.stringify(sessions.status()) }] }));
   server.registerTool('hub.session.heartbeat', { description: 'Renew a session lease', inputSchema: z.object({ sessionId: z.string() }).shape }, async (args: any) => ({ content: [{ type: 'text', text: JSON.stringify(sessions.heartbeat(args.sessionId)) }] }));

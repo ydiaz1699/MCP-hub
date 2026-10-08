@@ -2,7 +2,7 @@
   "name": "mcp-hub-vscode-bridge",
   "displayName": "MCP Hub Bridge",
   "description": "Local bridge that lets MCP Hub drive this VS Code window (editor, workspace, terminal, commands, debug, LSP) over a loopback-only API.",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "publisher": "ydiaz1699",
   "private": true,
   "license": "MIT",
