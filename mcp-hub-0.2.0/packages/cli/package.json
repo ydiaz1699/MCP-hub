@@ -1,0 +1,9 @@
+{
+  "name": "@mcp-hub/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": { "mcp-hub": "dist/index.js" },
+  "scripts": { "build": "tsc -p tsconfig.json", "dev": "tsx src/index.ts", "typecheck": "tsc -p tsconfig.json --noEmit" },
+  "dependencies": {},
+  "devDependencies": { "@types/node": "^22.15.30", "tsx": "^4.19.4", "typescript": "^5.8.3" }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@mcp-hub/vscode-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/extension.js",
+  "engines": { "vscode": "^1.96.0" },
+  "activationEvents": ["onStartupFinished"],
+  "scripts": { "build": "tsc -p tsconfig.json", "typecheck": "tsc -p tsconfig.json --noEmit", "package": "vsce package" },
+  "dependencies": {},
+  "devDependencies": { "@types/node": "^22.15.30", "@types/vscode": "^1.96.0", "@vscode/vsce": "^3.6.0", "typescript": "^5.8.3" },
+  "contributes": { "commands": [{ "command": "mcpHub.status", "title": "MCP Hub: Status" }] }
+}
