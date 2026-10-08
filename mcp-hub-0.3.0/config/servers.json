@@ -1,8 +1,0 @@
-{
-  "servers": {
-    "vscode": {
-      "enabled": true,
-      "bridgeUrl": "http://127.0.0.1:8766"
-    }
-  }
-}
