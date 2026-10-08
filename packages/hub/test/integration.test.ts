@@ -28,17 +28,38 @@ test('exclusive lock blocks a second session on the same workspace', () => {
   const sessions = new SessionManager(undefined); // in-memory
   const a = sessions.create('claude', '/ws/project', 'exclusive');
   const b = sessions.create('cursor', '/ws/project', 'exclusive');
-  sessions.acquire(a.id); // claude takes the lock
-  assert.throws(() => sessions.acquire(b.id), /Workspace locked/);
+  assert.equal(sessions.acquire(a.id).locked, false); // claude takes the lock
+  // acquire no longer throws: it reports the lock is held by another session
+  const second = sessions.acquire(b.id);
+  assert.equal(second.locked, true);
+  assert.equal(second.lockOwner, a.id);
+  // but requireLock (used by mutating tools) DOES throw with an actionable message
+  assert.throws(() => sessions.requireLock(b.id), /is locked by session/);
+});
+
+test('a blocked second session still exists and can take the lock after release (Option 1)', () => {
+  const sessions = new SessionManager(undefined);
+  const a = sessions.create('claude', '/ws/project', 'exclusive');
+  const b = sessions.create('cursor', '/ws/project', 'exclusive');
+  sessions.acquire(a.id);
+  // b was created and is still a valid, usable session even though it couldn't lock
+  assert.ok(sessions.get(b.id), 'blocked session must still exist');
+  assert.equal(sessions.acquire(b.id).locked, true);
+  // claude releases its lock (release removes claude's session + frees the lock)
+  for (const [ws, owner] of (sessions as any).locks) if (owner === a.id) (sessions as any).locks.delete(ws);
+  (sessions as any).sessions.delete(a.id);
+  // now b can take the lock without re-creating a session
+  assert.equal(sessions.acquire(b.id).locked, false);
+  assert.doesNotThrow(() => sessions.requireLock(b.id));
 });
 
 test('read-only session never takes a lock', () => {
   const sessions = new SessionManager(undefined);
   const ro = sessions.create('viewer', '/ws/project', 'read-only');
-  sessions.acquire(ro.id);
+  assert.equal(sessions.acquire(ro.id).locked, false);
   const other = sessions.create('writer', '/ws/project', 'exclusive');
   // read-only did not lock, so writer can still acquire
-  assert.ok(sessions.acquire(other.id));
+  assert.equal(sessions.acquire(other.id).locked, false);
 });
 
 test('releasing a session frees its lock for another client', () => {
@@ -47,7 +68,7 @@ test('releasing a session frees its lock for another client', () => {
   sessions.acquire(a.id);
   sessions.release(a.id);
   const b = sessions.create('cursor', '/ws/project', 'exclusive');
-  assert.ok(sessions.acquire(b.id)); // free now
+  assert.equal(sessions.acquire(b.id).locked, false); // free now
 });
 
 test('expired lease auto-releases the lock', async () => {
@@ -56,7 +77,7 @@ test('expired lease auto-releases the lock', async () => {
   sessions.acquire(a.id);
   await new Promise(r => setTimeout(r, 40));
   const b = sessions.create('cursor', '/ws/project', 'exclusive');
-  assert.ok(sessions.acquire(b.id)); // a's lease expired → lock freed
+  assert.equal(sessions.acquire(b.id).locked, false); // a's lease expired → lock freed
 });
 
 test('permission deny blocks a tool globally', () => {

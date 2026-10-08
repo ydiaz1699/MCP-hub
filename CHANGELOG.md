@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.0
+
+### Non-throwing lock acquisition (multi-agent UX fix)
+- `hub.session.acquire` no longer fails when the workspace is already locked. It always creates and
+  returns a usable session; the result now carries `{ session, locked, lockOwner }`. A blocked
+  second agent keeps a valid session (to observe/queue) and can take the lock after the owner
+  releases or its lease expires — without re-creating a session.
+- New `SessionManager.acquire()` returns the lock state (no throw); new `requireLock()` enforces the
+  lock for mutating tools and throws an actionable *"Workspace X is locked by session Y…"* message.
+- Fixes the misleading "requires a Hub session" error a blocked second agent used to get.
+- Verified end-to-end over real MCP calls (two clients contending the same workspace). 12 tests green.
+
 ## 0.5.0
 
 ### Session binding (multi-agent arbitration)

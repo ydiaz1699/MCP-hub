@@ -36,12 +36,32 @@ export class SessionManager {
     const s = this.get(id); if (!s) throw new Error(`Unknown session: ${id}`);
     s.lastSeenAt = new Date().toISOString(); s.leaseUntil = new Date(Date.now()+this.leaseMs).toISOString(); this.save(); return s;
   }
-  acquire(id: string): Session {
+  /**
+   * Try to take the workspace lock for a session WITHOUT throwing.
+   * Returns the current lock state so callers can decide what to do:
+   * - read-only sessions / sessions without a workspace never take a lock (locked:false).
+   * - if the lock is free (or already ours) we take it and return locked:false.
+   * - if another session owns it, we DO NOT throw; we return locked:true + lockOwner.
+   * This lets a second agent still hold a valid session (to observe/queue) instead of
+   * being left with no session at all.
+   */
+  acquire(id: string): { session: Session; locked: boolean; lockOwner?: string } {
     const s = this.touch(id);
-    if (!s.workspace || s.mode === 'read-only') return s;
+    if (!s.workspace || s.mode === 'read-only') return { session: s, locked: false };
     const owner = this.locks.get(s.workspace);
-    if (owner && owner !== id) throw new Error(`Workspace locked by session ${owner}`);
-    this.locks.set(s.workspace, id); this.save(); return s;
+    if (owner && owner !== id) return { session: s, locked: true, lockOwner: owner };
+    this.locks.set(s.workspace, id); this.save();
+    return { session: s, locked: false };
+  }
+
+  /**
+   * Enforce the lock for a mutating operation. Throws with an actionable message if the
+   * session cannot own the workspace lock. Used by mutating tools.
+   */
+  requireLock(id: string): Session {
+    const { session, locked, lockOwner } = this.acquire(id);
+    if (locked) throw new Error(`Workspace "${session.workspace}" is locked by session ${lockOwner}. Wait for it to release (hub.session.release) or its lease to expire, then retry.`);
+    return session;
   }
   heartbeat(id: string) { return this.touch(id); }
   release(id: string): void {
