@@ -4,12 +4,40 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 const port = Number(process.env.MCP_HUB_BRIDGE_PORT ?? 8766);
-const token = process.env.MCP_HUB_TOKEN ?? '';
 const hubUrl = process.env.MCP_HUB_URL ?? 'http://127.0.0.1:8765';
 
 function workspaceRoot(): string | undefined {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 }
+
+/**
+ * Resolve the shared token. Priority:
+ *   1. MCP_HUB_TOKEN env var (works when VS Code inherits the shell environment).
+ *   2. config.json from the first location that has one. VS Code on Windows frequently does NOT
+ *      inherit env vars from the launching terminal, so reading the same config.json the Hub wrote
+ *      keeps both sides in sync without relying on the environment.
+ * Candidate config locations, in order: MCP_HUB_HOME, the OS home (~/.mcp-hub), and the open
+ * workspace folder (./.mcp-hub) — the CLI falls back to cwd when HOME is unset, which on Windows
+ * lands the config inside the repo.
+ */
+function resolveToken(): string {
+  if (process.env.MCP_HUB_TOKEN) return process.env.MCP_HUB_TOKEN;
+  const candidates = [
+    process.env.MCP_HUB_HOME,
+    process.env.HOME ? path.join(process.env.HOME, '.mcp-hub') : undefined,
+    process.env.USERPROFILE ? path.join(process.env.USERPROFILE, '.mcp-hub') : undefined,
+    workspaceRoot() ? path.join(workspaceRoot()!, '.mcp-hub') : undefined
+  ].filter((p): p is string => Boolean(p));
+  for (const dir of candidates) {
+    try {
+      const cfg = JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));
+      if (cfg?.token) return cfg.token as string;
+    } catch { /* try next candidate */ }
+  }
+  return '';
+}
+
+let token = resolveToken();
 
 async function emit(type: string, payload: unknown) {
   try { await fetch(`${hubUrl}/events`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ type, payload }) }); } catch {}
@@ -149,6 +177,11 @@ export function activate(context: vscode.ExtensionContext) {
 
   server.listen(port, '127.0.0.1');
   context.subscriptions.push({ dispose: () => server.close() });
-  context.subscriptions.push(vscode.commands.registerCommand('mcpHub.status', () => vscode.window.showInformationMessage(`MCP Hub Bridge listening on 127.0.0.1:${port}`)));
+  context.subscriptions.push(vscode.commands.registerCommand('mcpHub.status', () => {
+    // re-resolve in case the config.json was written after activation
+    if (!token) token = resolveToken();
+    const tokenState = token ? `token OK (…${token.slice(-6)})` : 'NO TOKEN — set MCP_HUB_TOKEN or run "mcp-hub init"';
+    vscode.window.showInformationMessage(`MCP Hub Bridge on 127.0.0.1:${port} · ${tokenState}`);
+  }));
 }
 export function deactivate() {}
