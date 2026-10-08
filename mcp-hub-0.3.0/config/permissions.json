@@ -1,7 +1,0 @@
-{
-  "defaultMode": "exclusive",
-  "deny": [
-    "vscode.commands.execute:workbench.action.openSettings"
-  ],
-  "agents": {}
-}

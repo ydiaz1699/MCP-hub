@@ -1,0 +1,44 @@
+{
+  "name": "mcp-hub-vscode-bridge",
+  "displayName": "MCP Hub Bridge",
+  "description": "Local bridge that lets MCP Hub drive this VS Code window (editor, workspace, terminal, commands, debug, LSP) over a loopback-only API.",
+  "version": "0.4.0",
+  "publisher": "ydiaz1699",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ydiaz1699/MCP-hub.git"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepackage": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\"",
+    "package": "vsce package --no-dependencies"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^3.6.0",
+    "typescript": "^5.8.3"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "mcpHub.status",
+        "title": "MCP Hub: Status"
+      }
+    ]
+  }
+}

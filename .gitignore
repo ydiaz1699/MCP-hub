@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.vscode-test/
+*.vsix
+*.log
+.DS_Store
+.env
+packages/vscode-bridge/LICENSE
